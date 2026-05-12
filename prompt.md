@@ -1,0 +1,1 @@
+I know almost nothing about DevLake. The unstaged changes you see here are a plugin I was developing. In simple terms, walk me through what DevLake is, how the plugin architecture works and other topics a beginner should know.
