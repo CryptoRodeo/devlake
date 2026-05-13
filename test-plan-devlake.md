@@ -30,7 +30,7 @@ Outputs `bin/plugins/agentready/agentready.so`.
 ```bash
 export ENCRYPTION_SECRET="SMOZVSJZAXOADJDZTMTWLEOJVSIHPWFMNONSWZWVIHDDMLTYLAXXXTRRVDDSMICPOZTCSREVORSVYQBFGYNIAPXVHIPIVLNLEKAIFWVWMLNMFOXESQDRGHRYYJRKJBQT"
 export DB_URL="mysql://merico:merico@localhost:3306/lake?charset=utf8mb4&parseTime=True"
-make dev
+DEVLAKE_PLUGINS=agentready,github make godev
 ```
 
 Or build everything: `make build && make run`
@@ -135,6 +135,7 @@ From `~/projects/agentready-fleet/repos.yaml`:
 | rhtas-console-ui | GitHub | securesign/rhtas-console-ui | main |
 | trustify-ui | GitHub | guacsec/trustify-ui | main |
 | tsd-ui | GitHub | tsd-ui/tsd-ui | main |
+| agentready | GitHub | cryptorodeo/agentready | demo |
 | ui-packages.redhat.com | GitLab (CEE) | hosted-pulp/ui-packages.redhat.com | agentready-check |
 
 > **Note:** The GitLab repo uses `gitlab.cee.redhat.com` (internal). You'll need a separate GitLab connection with custom endpoint and SSL settings. Start with the GitHub repos — they're simpler.
@@ -195,12 +196,12 @@ Each repo is a "scope" attached to a connection. Replace `CONNECTION_ID` with th
 
 ```bash
 # First, look up the numeric GitHub IDs for each repo
-for repo in securesign/rhtas-console-ui guacsec/trustify-ui tsd-ui/tsd-ui cryptorodeo/agentready-fleet; do
+for repo in cryptorodeo/agentready cryptorodeo/agentready-fleet guacsec/trustify-ui tsd-ui/tsd-ui; do
   echo "$repo: $(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/$repo | jq .id)"
 done
 
 # Add all three repos at once (replace GITHUB_ID_* with actual IDs from above)
-curl -s -X PUT "http://localhost:8080/plugins/github/connections/CONNECTION_ID/scopes" \
+curl -s -X PUT "http://localhost:8080/plugins/github/connections/1/scopes" \
   -H 'Content-Type: application/json' \
   -d '{
     "data": [
@@ -223,6 +224,11 @@ curl -s -X PUT "http://localhost:8080/plugins/github/connections/CONNECTION_ID/s
         "githubId": 1233448046,
         "fullName": "cryptorodeo/agentready-fleet",
         "name": "agentready-fleet"
+      },
+      {
+        "githubId": 1224854195,
+        "fullName": "cryptorodeo/agentready",
+        "name": "agentready"
       }
     ]
   }' | jq .
@@ -231,7 +237,7 @@ curl -s -X PUT "http://localhost:8080/plugins/github/connections/CONNECTION_ID/s
 Verify scopes were added:
 
 ```bash
-curl -s "http://localhost:8080/plugins/github/connections/CONNECTION_ID/scopes" | jq '.scopes[].scope.fullName'
+curl -s "http://localhost:8080/plugins/github/connections/1/scopes" | jq '.scopes[].scope.fullName'
 ```
 
 Should show all four repo names.
@@ -262,7 +268,8 @@ podman compose -f docker-compose-dev.yml exec mysql \
     ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:994879996'),
     ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:770424376'),
     ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:1172483136'),
-    ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:1233448046');
+    ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:1233448046'),
+    ('TSD-UI AgentReady Fleet', 'repos', 'github:GithubRepo:1:1224854195');
   "
 ```
 
@@ -309,6 +316,26 @@ curl -s -X POST http://localhost:8080/pipelines \
     }]]
   }' | jq .
 ```
+
+**Option C — With specific branch** (for repos where the assessment file is not on the default branch):
+
+```bash
+# Example: cryptorodeo/agentready has assessment on 'demo' branch
+curl -s -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "agentready-fleet-test",
+    "plan": [[{
+      "plugin": "agentready",
+      "options": {
+        "repoId": "github:GithubRepo:1:1224854195",
+        "branch": "demo"
+      }
+    }]]
+  }' | jq .
+```
+
+> **Note:** The `branch` option works with both `repoId` and `projectName`. When using `projectName`, all repos in the project will be fetched from the specified branch. Per-repo branch overrides require separate pipeline runs.
 
 Save the pipeline `id` from the response.
 
